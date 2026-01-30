@@ -1,0 +1,4 @@
+# Generated samples
+/tests/fixtures/*.wav
+/dataset/*.wav
+/dataset/*.txt
