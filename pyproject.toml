@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "realtime-stt-service"
+version = "0.1.0"
+description = "Local-first real-time STT service with VAD, trigger detection, and voice authentication"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [{ name = "STT Service" }]
+dependencies = [
+  "numpy>=1.26",
+  "sounddevice>=0.4",
+  "fastapi>=0.111",
+  "uvicorn>=0.30",
+  "python-dotenv>=1.0",
+  "PyYAML>=6.0",
+]
+
+[project.optional-dependencies]
+ml = [
+  "faster-whisper>=1.0",
+  "speechbrain>=1.0",
+  "torch>=2.2",
+  "webrtcvad-wheels>=2.0.14",
+  "scipy>=1.11",
+]
+dev = [
+  "pytest>=8.0",
+]
+
+[project.scripts]
+stt = "stt_service.main:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["stt_service*"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]
+
+pythonpath = ["."]
