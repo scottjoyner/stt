@@ -16,7 +16,7 @@ class EventReplayStore:
     def add_index(self, event_id: str, path: Path, line_no: int, ts_wall: str) -> None:
         payload = json.loads(self.index_path.read_text())
         items = payload.get("items", [])
-        items.append({"event_id": event_id, "path": str(path), "line_no": line_no, "ts_wall": ts_wall})
+        items.append({"event_id": event_id, "path": str(path), "line_no": line_no, "ts_wall": ts_wall, "cursor": f"{path}:{line_no}"})
         payload["items"] = items[-5000:]
         self.index_path.write_text(json.dumps(payload))
 
@@ -33,24 +33,30 @@ class EventReplayStore:
     def recent(self, seconds: int) -> list[dict[str, Any]]:
         payload = json.loads(self.index_path.read_text())
         items = payload.get("items", [])
-        if seconds <= 0:
-            refs = items[-200:]
-        else:
-            refs = items[-2000:]
+        refs = items[-200:] if seconds <= 0 else items[-2000:]
         out: list[dict[str, Any]] = []
         for ref in refs:
             ev = self._load_event_by_ref(ref)
             if ev:
+                ev["cursor"] = ref.get("cursor")
                 out.append(ev)
         return out
 
     def from_event_id(self, event_id: str | None, limit: int = 500) -> list[dict[str, Any]]:
+        return self.from_cursor(from_event_id=event_id, from_line=None, limit=limit)
+
+    def from_cursor(self, from_event_id: str | None = None, from_line: int | None = None, limit: int = 500) -> list[dict[str, Any]]:
         payload = json.loads(self.index_path.read_text())
         items = payload.get("items", [])
         start = 0
-        if event_id:
+        if from_line is not None:
             for idx, item in enumerate(items):
-                if item.get("event_id") == event_id:
+                if int(item.get("line_no", 0)) >= int(from_line):
+                    start = idx
+                    break
+        elif from_event_id:
+            for idx, item in enumerate(items):
+                if item.get("event_id") == from_event_id:
                     start = idx + 1
                     break
         refs = items[start : start + limit]
@@ -58,5 +64,6 @@ class EventReplayStore:
         for ref in refs:
             ev = self._load_event_by_ref(ref)
             if ev:
+                ev["cursor"] = ref.get("cursor")
                 out.append(ev)
         return out

@@ -1,0 +1,61 @@
+{
+  "turn_final": {
+    "schema_version": "3.0",
+    "event_id": "evt_100",
+    "event_type": "turn_final",
+    "session_id": "sess_01",
+    "ts_wall": "2026-01-01T00:00:00Z",
+    "ts_mono_ms": 12345,
+    "source": "stt_service",
+    "conversation_id": "conv_01",
+    "turn_id": "turn_01",
+    "trace_id": "trace_abc",
+    "span_id": "span_abc",
+    "transcript_text": "Ralph, please summarize this build status"
+  },
+  "task_created": {
+    "schema_version": "3.0",
+    "event_id": "evt_101",
+    "event_type": "task_created",
+    "session_id": "agent_sess",
+    "ts_wall": "2026-01-01T00:00:01Z",
+    "ts_mono_ms": 12400,
+    "source": "agent_tts",
+    "conversation_id": "conv_01",
+    "trace_id": "trace_abc",
+    "task_id": "task_01",
+    "turn_id": "turn_01",
+    "priority": "interactive"
+  },
+  "agent_step_result": {
+    "schema_version": "3.0",
+    "event_id": "evt_102",
+    "event_type": "agent_step_result",
+    "session_id": "agent_sess",
+    "ts_wall": "2026-01-01T00:00:03Z",
+    "ts_mono_ms": 13000,
+    "source": "agent_tts",
+    "conversation_id": "conv_01",
+    "trace_id": "trace_abc",
+    "task_id": "task_01",
+    "run_id": "run_01",
+    "step_id": "step_02",
+    "agent_name": "executor",
+    "payload": {"summary": "Compiled status and produced answer."}
+  },
+  "tts_chunk": {
+    "schema_version": "3.0",
+    "event_id": "evt_103",
+    "event_type": "tts_chunk",
+    "session_id": "agent_sess",
+    "ts_wall": "2026-01-01T00:00:04Z",
+    "ts_mono_ms": 13200,
+    "source": "tts",
+    "conversation_id": "conv_01",
+    "trace_id": "trace_abc",
+    "task_id": "task_01",
+    "run_id": "run_01",
+    "chunk_index": 1,
+    "text": "Build is green and deployment is queued."
+  }
+}

@@ -29,6 +29,7 @@ from stt_service.utils.ids import new_event_id, new_segment_id
 from stt_service.utils.time import now_monotonic, now_wall_iso
 from stt_service.vad.energy_vad import EnergyVAD
 from stt_service.vad.segmenter import Segmenter
+from voicebus.tracing.trace import new_trace
 
 LOGGER = logging.getLogger(__name__)
 
@@ -90,6 +91,8 @@ class RuntimePipeline:
 
     async def _handle_segment(self, seg) -> None:
         segment_id = new_segment_id()
+        turn_id = f"turn_{segment_id}"
+        trace = new_trace()
         t0 = now_monotonic()
         partial = self.transcriber.partial(seg.samples, self.settings.sample_rate)
         final = self.transcriber.final(seg.samples, self.settings.sample_rate)
@@ -101,10 +104,7 @@ class RuntimePipeline:
         if trig_partial.triggered or trig_final.triggered:
             self.trigger_window.open(seg.end_mono, (trig_final.trigger_type or trig_partial.trigger_type or "phrase"))
         trigger_ctx = self.trigger_window.context(seg.end_mono)
-        if trigger_ctx["triggered"]:
-            trigger_ctx["window_expires_ts"] = now_wall_iso()
-        else:
-            trigger_ctx["window_expires_ts"] = None
+        trigger_ctx["window_expires_ts"] = now_wall_iso() if trigger_ctx["triggered"] else None
 
         voiceprints = self.voiceprints.load_all()
         emb = self.embedder.embed(seg.samples, self.settings.sample_rate)
@@ -121,35 +121,35 @@ class RuntimePipeline:
         intent = self.router.parse_intent(final.text)
         actionable = auth and (bool(trigger_ctx["triggered"]) or intent.get("intent") in {"note", "status", "cancel"})
         reason = "authenticated_and_triggered_or_intent" if actionable else "missing_auth_or_command_signal"
+        conv_id = self.conversations.current()
+
+        await self._emit_turn_event("turn_start", turn_id, conv_id, partial.text, seg.start_mono, trace.trace_id, trace.span_id)
+        if partial.text.strip():
+            await self._emit_turn_event("turn_update", turn_id, conv_id, partial.text, seg.end_mono, trace.trace_id, trace.span_id)
+        await self._emit_turn_event("turn_final", turn_id, conv_id, final.text, seg.end_mono, trace.trace_id, trace.span_id)
 
         payload = {
             "schema_version": SCHEMA_VERSION,
             "event_id": new_event_id(),
             "event_type": "segment_final",
-            "event": "segment_final",
             "session_id": self.settings.session_id,
             "ts_wall": now_wall_iso(),
             "ts_mono_ms": int(seg.end_mono * 1000),
             "source": "stt_service",
+            "trace_id": trace.trace_id,
+            "span_id": trace.child().span_id,
             "segment_id": segment_id,
-            "conversation_id": self.conversations.current(),
+            "turn_id": turn_id,
+            "conversation_id": conv_id,
             "start_mono_ms": int(seg.start_mono * 1000),
             "end_mono_ms": int(seg.end_mono * 1000),
             "duration_ms": duration_ms,
             "vad": {"speech_ratio": seg.speech_ratio},
-            "trigger": {
-                "triggered": bool(trigger_ctx["triggered"]),
-                "trigger_type": trigger_ctx["trigger_type"],
-                "trigger_offset_ms": 0 if trigger_ctx["triggered"] else None,
-            },
             "trigger_context": trigger_ctx,
             "transcript_final": final.text,
-            "transcript_partials": list(self._partial_history),
             "speaker": {
                 "user": user,
-                "speaker_candidate": user,
                 "score": float(score),
-                "speaker_score": float(score),
                 "threshold": float(threshold),
                 "authenticated": bool(auth),
                 "method": "ecapa",
@@ -169,7 +169,7 @@ class RuntimePipeline:
             self.wav_writer.save(segment_id, seg.samples)
 
         if self.settings.partials_enabled:
-            await self._emit_partial(segment_id, seg, partial)
+            await self._emit_partial(segment_id, turn_id, trace.trace_id, seg, partial)
 
         LOGGER.info(
             "segment_processed segment_id=%s dur_ms=%s stt_ms=%.2f auth=%s score=%.3f actionable=%s",
@@ -181,12 +181,11 @@ class RuntimePipeline:
             actionable,
         )
         await self.bus.publish("segment_final", validated)
-        await self.bus.publish("transcript_final", validated)
 
         if trig_final.triggered:
             await self.bus.publish("command_final", {"segment_id": segment_id, "text": final.text, "intent": intent})
 
-    async def _emit_partial(self, segment_id: str, seg, partial: TranscriptChunk) -> None:
+    async def _emit_partial(self, segment_id: str, turn_id: str, trace_id: str, seg, partial: TranscriptChunk) -> None:
         text = partial.text.strip()
         self._partial_history.append(text)
         payload = {
@@ -197,7 +196,9 @@ class RuntimePipeline:
             "ts_wall": now_wall_iso(),
             "ts_mono_ms": int(seg.end_mono * 1000),
             "source": "stt_service",
+            "trace_id": trace_id,
             "segment_id": segment_id,
+            "turn_id": turn_id,
             "conversation_id": self.conversations.current(),
             "partial_text": text,
             "stable_text": text,
@@ -217,6 +218,35 @@ class RuntimePipeline:
             "ts_mono_ms": int(mono_ts * 1000),
             "source": "stt_service",
             **extra,
+        }
+        validated = self.events.append(payload)
+        await self.bus.publish(event_type, validated)
+
+    async def _emit_turn_event(
+        self,
+        event_type: str,
+        turn_id: str,
+        conversation_id: str | None,
+        text: str,
+        mono_ts: float,
+        trace_id: str,
+        span_id: str,
+    ) -> None:
+        if conversation_id is None:
+            return
+        payload = {
+            "schema_version": SCHEMA_VERSION,
+            "event_id": new_event_id(),
+            "event_type": event_type,
+            "session_id": self.settings.session_id,
+            "ts_wall": now_wall_iso(),
+            "ts_mono_ms": int(mono_ts * 1000),
+            "source": "stt_service",
+            "conversation_id": conversation_id,
+            "turn_id": turn_id,
+            "trace_id": trace_id,
+            "span_id": span_id,
+            "transcript_text": text.strip(),
         }
         validated = self.events.append(payload)
         await self.bus.publish(event_type, validated)

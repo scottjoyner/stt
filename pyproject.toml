@@ -17,6 +17,7 @@ dependencies = [
   "uvicorn>=0.30",
   "python-dotenv>=1.0",
   "PyYAML>=6.0",
+  "websockets>=12.0",
 ]
 
 [project.optional-dependencies]
@@ -30,13 +31,16 @@ ml = [
 dev = [
   "pytest>=8.0",
 ]
+agent = [
+  "dspy-ai>=2.5",
+]
 
 [project.scripts]
 stt = "stt_service.main:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["stt_service*"]
+include = ["stt_service*", "voicebus*", "agent_tts_v3*"]
 
 [tool.pytest.ini_options]
 addopts = "-q"
