@@ -5,7 +5,9 @@ from dataclasses import dataclass
 import numpy as np
 
 from stt_service.speaker.embedder import SpeakerEmbedder
+from stt_service.speaker.quality import speaker_quality
 from stt_service.speaker.voiceprints import Voiceprint
+from stt_service.utils.ids import new_event_id
 from stt_service.utils.time import now_wall_iso
 
 ENROLLMENT_SENTENCES = [
@@ -24,9 +26,10 @@ class EnrollmentResult:
 
 
 class EnrollmentService:
-    def __init__(self, embedder: SpeakerEmbedder, model_version: str) -> None:
+    def __init__(self, embedder: SpeakerEmbedder, model_version: str, auth_threshold: float = 0.55) -> None:
         self.embedder = embedder
         self.model_version = model_version
+        self.auth_threshold = auth_threshold
 
     def build_voiceprint(self, user: str, segments: list[np.ndarray], sample_rate: int) -> EnrollmentResult:
         if not segments:
@@ -34,11 +37,17 @@ class EnrollmentService:
         embs = [self.embedder.embed(seg, sample_rate) for seg in segments]
         mean = np.mean(np.stack(embs), axis=0)
         mean = mean / (np.linalg.norm(mean) + 1e-9)
+        enrollment_rows = []
+        for emb, seg in zip(embs, segments, strict=False):
+            q = speaker_quality(seg, sample_rate, speech_ratio=1.0)
+            enrollment_rows.append({"embedding_id": new_event_id(), "embedding": emb.tolist(), "quality": q})
         vp = Voiceprint(
             user=user,
             embedding=mean.astype(np.float32),
             sample_count=len(segments),
             model_version=self.model_version,
             created_at=now_wall_iso(),
+            enrollments=enrollment_rows,
+            auth_threshold=self.auth_threshold,
         )
         return EnrollmentResult(voiceprint=vp)

@@ -27,6 +27,7 @@ class MicrophoneInput:
         self.settings = settings
         self.frame_queue = frame_queue
         self._stream = None
+        self.dropped_frames = 0
 
     def start(self) -> None:
         if sd is None:
@@ -41,6 +42,7 @@ class MicrophoneInput:
             try:
                 self.frame_queue.put_nowait(AudioFrame(samples=mono, monotonic_ts=_time.inputBufferAdcTime))
             except queue.Full:
+                self.dropped_frames += 1
                 _ = self.frame_queue.get_nowait()
                 self.frame_queue.put_nowait(AudioFrame(samples=mono, monotonic_ts=_time.inputBufferAdcTime))
 
