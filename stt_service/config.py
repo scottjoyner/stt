@@ -25,9 +25,16 @@ class Settings:
 
     trigger_phrases: list[str] = field(default_factory=lambda: ["hey assistant", "computer", "ok ralph"])
     trigger_enabled: bool = True
+    trigger_window_seconds: int = 10
 
     auth_threshold: float = 0.55
+    auth_min_duration_ms: int = 1200
     speaker_model: str = "speechbrain/spkrec-ecapa-voxceleb"
+
+    partials_enabled: bool = True
+    conversation_silence_seconds: int = 30
+    pipeline_health_interval_seconds: int = 5
+    intent_llm_enabled: bool = False
 
     data_dir: Path = Path("data")
     save_segment_wav: bool = False
@@ -70,8 +77,14 @@ class Settings:
         self.stt_chunk_ms = int(merged.get("stt_chunk_ms", 700))
         self.trigger_phrases = list(merged.get("trigger_phrases", ["hey assistant", "computer", "ok ralph"]))
         self.trigger_enabled = bool(merged.get("trigger_enabled", True))
+        self.trigger_window_seconds = int(merged.get("trigger_window_seconds", 10))
         self.auth_threshold = float(merged.get("auth_threshold", 0.55))
+        self.auth_min_duration_ms = int(merged.get("auth_min_duration_ms", 1200))
         self.speaker_model = str(merged.get("speaker_model", "speechbrain/spkrec-ecapa-voxceleb"))
+        self.partials_enabled = bool(merged.get("partials_enabled", True))
+        self.conversation_silence_seconds = int(merged.get("conversation_silence_seconds", 30))
+        self.pipeline_health_interval_seconds = int(merged.get("pipeline_health_interval_seconds", 5))
+        self.intent_llm_enabled = bool(merged.get("intent_llm_enabled", False))
         self.data_dir = Path(merged.get("data_dir", "data"))
         self.save_segment_wav = bool(merged.get("save_segment_wav", False))
         self.queue_maxsize = int(merged.get("queue_maxsize", 100))
@@ -108,8 +121,14 @@ class Settings:
             "stt_chunk_ms": self.stt_chunk_ms,
             "trigger_phrases": self.trigger_phrases,
             "trigger_enabled": self.trigger_enabled,
+            "trigger_window_seconds": self.trigger_window_seconds,
             "auth_threshold": self.auth_threshold,
+            "auth_min_duration_ms": self.auth_min_duration_ms,
             "speaker_model": self.speaker_model,
+            "partials_enabled": self.partials_enabled,
+            "conversation_silence_seconds": self.conversation_silence_seconds,
+            "pipeline_health_interval_seconds": self.pipeline_health_interval_seconds,
+            "intent_llm_enabled": self.intent_llm_enabled,
             "data_dir": str(self.data_dir),
             "save_segment_wav": self.save_segment_wav,
             "queue_maxsize": self.queue_maxsize,

@@ -13,6 +13,7 @@ dependencies = [
   "numpy>=1.26",
   "sounddevice>=0.4",
   "fastapi>=0.111",
+  "pydantic>=2.7",
   "uvicorn>=0.30",
   "python-dotenv>=1.0",
   "PyYAML>=6.0",

@@ -57,7 +57,7 @@ async def run_file(settings: Settings, path: Path) -> None:
 
 def do_enroll(settings: Settings, user: str) -> None:
     embedder = SpeakerEmbedder(settings.speaker_model)
-    service = EnrollmentService(embedder, settings.speaker_model)
+    service = EnrollmentService(embedder, settings.speaker_model, auth_threshold=settings.auth_threshold)
     store = VoiceprintStore(settings.data_dir / "voiceprints")
 
     print(f"Enrolling user '{user}'. Read each sentence, then paste path to a 16k wav capture.")
